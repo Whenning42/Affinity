@@ -1,5 +1,6 @@
 #include <cassert>
 #include <fstream>
+#include <iostream>
 #include <set>
 #include <tuple>
 #include <type_traits>
@@ -178,7 +179,7 @@ struct InputAssemblyState : public VkInputAssemblyState {
     sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     pNext = nullptr;
     flags = 0;
-    VkBool32 primitiveRestartEnable = VK_FALSE;
+    primitiveRestartEnable = VK_FALSE;
   }
 
   public:
@@ -304,6 +305,9 @@ struct GraphicsPipelineCreateInfo : public VkGraphicsPipelineCreateInfo {
     pDepthStencilState = &kNoDepthTest;
     pColorBlendState = &kNoBlendingSingleAttachment;
     pDynamicState = nullptr;
+    renderPass = nullptr;
+    basePipelineHandle = VK_NULL_HANDLE;
+    basePipelineIndex = -1;
   }
 };
 
@@ -311,6 +315,7 @@ struct ShaderModule {
   static VkShaderModule Create(VkDevice device, const std::vector<char>& source) {
     VkShaderModuleCreateInfo F(create_info,
       sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      pNext = nullptr,
       flags = 0,
       codeSize = source.size(),
       pCode = reinterpret_cast<const uint32_t*>(source.data())
@@ -377,7 +382,7 @@ struct PipelineShaderStageCreateInfo : public VkPipelineShaderStageCreateInfo {
 
 VkRenderPass CreateRenderPass(VkDevice device, const VkRenderPassCreateInfo& create_info) {
   VkRenderPass render_pass;
-  assert(vkCreateRenderPass(device, &create_info, nullptr, &render_pass) != VK_SUCCESS);
+  assert(vkCreateRenderPass(device, &create_info, nullptr, &render_pass) == VK_SUCCESS);
   return render_pass;
 }
 
@@ -464,6 +469,8 @@ int32_t GetQueueFamilySupportingSurface(VkPhysicalDevice physical_device, VkSurf
 
 std::vector<char> ReadFile(const std::string& filename) {
   std::ifstream file(filename);
+  assert(file.is_open());
+
   file.seekg(0, std::ios::end);
   size_t length = file.tellg();
   file.seekg(0, std::ios::beg);
@@ -471,4 +478,37 @@ std::vector<char> ReadFile(const std::string& filename) {
   std::vector<char> file_contents(length);
   file.read(file_contents.data(), length);
   return file_contents;
+}
+
+// Functions all come from demo.
+static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
+    VkDebugReportFlagsEXT flags,
+    VkDebugReportObjectTypeEXT objType,
+    uint64_t obj,
+    size_t location,
+    int32_t code,
+    const char* layerPrefix,
+    const char* msg,
+    void* userData) {
+
+    std::cerr << "validation layer: " << msg << std::endl;
+
+    assert(false);
+    return VK_FALSE;
+}
+
+VkResult CreateDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugReportCallbackEXT* pCallback) {
+    auto func = (PFN_vkCreateDebugReportCallbackEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
+    if (func != nullptr) {
+        return func(instance, pCreateInfo, pAllocator, pCallback);
+    } else {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+}
+
+void DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT callback, const VkAllocationCallbacks* pAllocator) {
+    auto func = (PFN_vkDestroyDebugReportCallbackEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
+    if (func != nullptr) {
+        func(instance, callback, pAllocator);
+    }
 }

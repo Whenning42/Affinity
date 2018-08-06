@@ -161,6 +161,14 @@ int main() {
 
   VkInstance instance = vkh::CreateInstance(instance_info);
 
+  VkDebugReportCallbackCreateInfoEXT create_info = {};
+  create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+  create_info.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+  create_info.pfnCallback = DebugCallback;
+
+  VkDebugReportCallbackEXT callback;
+  assert(CreateDebugReportCallbackEXT(instance, &create_info, nullptr, &callback) == VK_SUCCESS);
+
   VkSurfaceKHR surface;
   assert(SDL_Vulkan_CreateSurface(window, instance, &surface));
 
@@ -241,7 +249,7 @@ int main() {
 
   // Graphics pipeline
    auto vert_source = ReadFile("shaders/quad.vert.spv");
-   auto frag_source = ReadFile("shaders/quad.vert.spv");
+   auto frag_source = ReadFile("shaders/quad.frag.spv");
 
    VkShaderModule vertex_module = vkh::ShaderModule::Create(device, vert_source);
    VkShaderModule fragment_module = vkh::ShaderModule::Create(device, frag_source);
@@ -303,13 +311,17 @@ int main() {
       pInputAssemblyState = &input_assembly_state,
       pViewportState = &viewport_state,
       layout = pipeline_layout,
+      renderPass = render_pass,
       subpass = 0
    );
    VkPipeline graphics_pipeline;
    assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphics_pipeline) == VK_SUCCESS);
 
 
-  // If we start using custom allocators, then we'll have to handle that here.
+  DestroyDebugReportCallbackEXT(instance, callback, nullptr);
+  vkDestroyShaderModule(device, vertex_module, nullptr);
+  vkDestroyShaderModule(device, fragment_module, nullptr);
+  vkDestroyPipeline(device, graphics_pipeline, nullptr);
   vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
   vkDestroyRenderPass(device, render_pass, nullptr);
   for(auto image_view : swapchain_image_views) {
