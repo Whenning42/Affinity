@@ -2,6 +2,7 @@
 #include <cassert>
 #include <iostream>
 #include <set>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -9,22 +10,39 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-// Note: GetProp could return a VK_ERROR and not be caught here. Some functions
+template<class T>
+struct function_traits : function_traits<decltype(&T::operator())> {};
+
+template<class R, class... Args>
+struct function_traits<R (*)(Args...)> {
+  using result_type = R;
+  using argument_types = std::tuple<Args...>;
+};
+
+template<class func_t, int v>
+using arg_type = typename std::tuple_element<v, typename function_traits<func_t>::argument_types>::type;
+
+template<class func_t, int v>
+using arg_value_type = typename std::remove_pointer<arg_type<func_t, v>>::type;
+
+// Note: GetProp could return a VK_ERROR that isn't caught here. Some functions
 // matching this pattern can throw errors and some can't, rip.
-template <typename returned_t, typename key_t, typename function_t>
-std::vector<returned_t> GetProps(key_t key, const function_t &GetProp) {
+template <typename key_t, typename function_t>
+std::vector<arg_value_type<function_t, 2>> GetProps(key_t key, const function_t &GetProp) {
   uint32_t num_things = 0;
   GetProp(key, &num_things, nullptr);
-  std::vector<returned_t> things(num_things);
+
+  std::vector<arg_value_type<function_t, 2>> things(num_things);
   GetProp(key, &num_things, things.data());
   return things;
 }
 
-template <typename returned_t, typename key1_t, typename key2_t, typename function_t>
-std::vector<returned_t> GetProps(key1_t key1, key2_t key2, const function_t &GetProp) {
+template <typename key1_t, typename key2_t, typename function_t>
+std::vector<arg_value_type<function_t, 3>> GetProps(key1_t key1, key2_t key2, const function_t &GetProp) {
   uint32_t num_things = 0;
   GetProp(key1, key2, &num_things, nullptr);
-  std::vector<returned_t> things(num_things);
+
+  std::vector<arg_value_type<function_t, 3>> things(num_things);
   GetProp(key1, key2, &num_things, things.data());
   return things;
 }
@@ -39,7 +57,7 @@ InputIt c_find_if(const C& container, const UnaryPredicate& p) {
 }
 
 bool DeviceSupportsExtensions(VkPhysicalDevice physical_device, const std::vector<const char*>& necessary_extensions) {
-  auto supported_extensions = GetProps<VkExtensionProperties>(physical_device, DefaultDeviceExtensionProperties);
+  auto supported_extensions = GetProps(physical_device, &DefaultDeviceExtensionProperties);
 
   std::set<std::string> required_extensions(necessary_extensions.begin(), necessary_extensions.end());
   for(const auto& extension : supported_extensions) {
@@ -50,15 +68,14 @@ bool DeviceSupportsExtensions(VkPhysicalDevice physical_device, const std::vecto
 
 bool DeviceSupportsSwapchain(VkPhysicalDevice physical_device, VkSurfaceKHR surface) {
   auto capabilities = vkh::GetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface);
-  auto surface_formats = GetProps<VkSurfaceFormatKHR>(physical_device, surface, vkGetPhysicalDeviceSurfaceFormatsKHR);
-  auto present_modes = GetProps<VkPresentModeKHR>(physical_device, surface, vkGetPhysicalDeviceSurfacePresentModesKHR);
+  auto surface_formats = GetProps(physical_device, surface, &vkGetPhysicalDeviceSurfaceFormatsKHR);
+  auto present_modes = GetProps(physical_device, surface, &vkGetPhysicalDeviceSurfacePresentModesKHR);
   return true;
 }
 
 // Asserts that the chosen physical device has support for the given surface.
 VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface, const std::vector<const char*>& necessary_extensions) {
-  auto physical_devices =
-      GetProps<VkPhysicalDevice>(instance, vkEnumeratePhysicalDevices);
+  auto physical_devices = GetProps(instance, &vkEnumeratePhysicalDevices);
 
   VkPhysicalDevice chosen_device = nullptr;
   for (uint32_t i = 0; i < physical_devices.size(); ++i) {
@@ -81,8 +98,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface,
 
 // Returns -1 if no queue family has support.
 int32_t GetQueueFamily(VkPhysicalDevice physical_device, VkQueueFlags flags) {
-  auto family_properties = GetProps<VkQueueFamilyProperties>(
-      physical_device, vkGetPhysicalDeviceQueueFamilyProperties);
+  auto family_properties = GetProps(physical_device, &vkGetPhysicalDeviceQueueFamilyProperties);
 
   for(int32_t i = 0; i < family_properties.size(); ++i) {
     if(family_properties[i].queueFlags & flags == flags) {
@@ -93,6 +109,7 @@ int32_t GetQueueFamily(VkPhysicalDevice physical_device, VkQueueFlags flags) {
   // No queue family supports these flags
   return -1;
 }
+
 
 int main() {
   SDL_Init(SDL_INIT_EVERYTHING);
