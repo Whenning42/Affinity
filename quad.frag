@@ -1,4 +1,4 @@
-R"(#version 330 core
+#version 330 core
 
 in vec2 frag_pos;
 
@@ -14,4 +14,3 @@ void main() {
 //    frag_color = vec4(vec2((gl_FragCoord/500.0).x), 0, 0);
 
 }
-)"
