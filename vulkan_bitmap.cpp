@@ -197,7 +197,7 @@ class BitmapRenderer {
         swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    swapchain = vkh::CreateSwapchainKHR(device, swapchain_info);
+    swapchain = vkh::CreateSwapchainKHR(swapchain_info);
 
     auto swapchain_images = GetProps(device, swapchain, &vkGetSwapchainImagesKHR);
     for(const auto image : swapchain_images) {
@@ -206,7 +206,7 @@ class BitmapRenderer {
           format = surface_format.format
       );
 
-      swapchain_image_views.push_back(vkh::CreateImageView(device, image_view_info));
+      swapchain_image_views.push_back(vkh::CreateImageView(image_view_info));
     }
 
     // Graphics pipeline create start
@@ -240,7 +240,7 @@ class BitmapRenderer {
        setLayoutCount = 0,
        pSetLayouts = nullptr
     );
-    pipeline_layout = vkh::CreatePipelineLayout(device, pipeline_layout_info);
+    pipeline_layout = vkh::CreatePipelineLayout(pipeline_layout_info);
 
     vkh::AttachmentDescription F(presentable_color_attachment,
        format = surface_format.format,
@@ -272,7 +272,7 @@ class BitmapRenderer {
        dependencyCount = 1,
        pDependencies = &subpass_dependency
     );
-    render_pass = vkh::CreateRenderPass(device, render_pass_info);
+    render_pass = vkh::CreateRenderPass(render_pass_info);
 
     vkh::GraphicsPipelineCreateInfo F(pipeline_info,
        stageCount = pipeline_stages.size(),
@@ -295,7 +295,7 @@ class BitmapRenderer {
           height = swapchain_extent.height
       );
 
-      swapchain_framebuffers.push_back(vkh::CreateFramebuffer(device, framebuffer_info));
+      swapchain_framebuffers.push_back(vkh::CreateFramebuffer(framebuffer_info));
     };
 
     command_buffers.resize(swapchain_framebuffers.size());
@@ -311,7 +311,7 @@ class BitmapRenderer {
       vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
       vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
-      vkCmdDraw(command_buffer, 3, 1, 0, 0);
+      vkCmdDraw(command_buffer, 4, 1, 0, 0);
 
       vkCmdEndRenderPass(command_buffer);
       assert(vkEndCommandBuffer(command_buffer) == VK_SUCCESS);
@@ -383,6 +383,7 @@ public:
 
     const std::vector<const char*> device_extensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     physical_device = ChoosePhysicalDevice(instance, surface, device_extensions);
+    vkh::physical_device = physical_device;
 
     graphics_queue_family = GetQueueFamily(physical_device, VK_QUEUE_GRAPHICS_BIT);
     int32_t transfer_queue_family = GetQueueFamily(physical_device, VK_QUEUE_TRANSFER_BIT);
@@ -405,6 +406,7 @@ public:
         ppEnabledExtensionNames = device_extensions.data()
     );
     device = vkh::CreateDevice(physical_device, device_info);
+    vkh::device = device;
 
     graphics_queue = vkh::GetDeviceQueue(device, graphics_queue_family, 0);
     VkQueue transfer_queue = vkh::GetDeviceQueue(device, transfer_queue_family, 0);
@@ -412,7 +414,7 @@ public:
 
 
     vkh::CommandPoolCreateInfo command_pool_info(graphics_queue_family);
-    command_pool = vkh::CreateCommandPool(device, command_pool_info);
+    command_pool = vkh::CreateCommandPool(command_pool_info);
 
     vertex_module = h::ShaderModule(device, "shaders/quad.vert.spv");
     fragment_module = h::ShaderModule(device, "shaders/quad.frag.spv");
@@ -432,6 +434,21 @@ public:
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
     SDL_Event event;
+
+    uint32_t kImageHeight = 512;
+    uint32_t kImageWidth = 512;
+    size_t texture_size = kImageHeight * kImageWidth * 4;
+    VkDeviceMemory buffer_memory;
+
+    auto staging_buffer = vkh::CreateBuffer(texture_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer_memory);
+
+    void* texture_data;
+    vkMapMemory(device, buffer_memory, 0, texture_size, 0, &texture_data);
+    memset(texture_data, 128, texture_size);
+    vkUnmapMemory(device, buffer_memory);
+
+    VkDeviceMemory texture_memory;
+    auto texture_image = vkh::CreateImage(kImageWidth, kImageHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &texture_memory);
 
     bool run = true;
     while (run) {

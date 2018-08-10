@@ -107,17 +107,27 @@ struct name : public dv :: name
 // Generates a generic create helper function with the default behaviour of
 // asserting success and returning the created object, while using no custom
 // memory allocator.
-#define DCE(type, extension) Vk ## type ## extension Create ## type ## extension (VkDevice device, const Vk ## type ## CreateInfo ## extension& create_info) { \
+#define DCE(type, extension) CE(type, extension) \
+Vk ## type ## extension Create ## type ## extension (VkDevice device, const Vk ## type ## CreateInfo ## extension& create_info) { \
   Vk ## type ## extension type; \
   assert(vkCreate ## type ## extension(device, &create_info, nullptr, &type) == VK_SUCCESS); \
   return type; \
 }
 
+// Like DCE, but uses the global device
+#define CE(type, extension) Vk ## type ## extension Create ## type ## extension (const Vk ## type ## CreateInfo ## extension& create_info) { \
+  Vk ## type ## extension type; \
+  assert(vkCreate ## type ## extension(device, &create_info, nullptr, &type) == VK_SUCCESS); \
+  return type; \
+}
 
 // Generates a helper for a type that is core vulkan.
 #define DC(type) DCE(type, )
 
 namespace vkh {
+
+VkPhysicalDevice physical_device;
+VkDevice device;
 
 DVST(ApplicationInfo, APPLICATION_INFO) {};
 
@@ -396,6 +406,73 @@ DVST(PresentInfoKHR, PRESENT_INFO_KHR) {
     pImageIndices = image_index;
   }
 };
+
+DVST(MemoryAllocateInfo, MEMORY_ALLOCATE_INFO) {};
+
+void AllocateMemory(VkMemoryPropertyFlags required_memory_properties, const VkMemoryRequirements& memory_requirements, VkDeviceMemory* device_memory) {
+  VkPhysicalDeviceMemoryProperties memory_properties;
+  vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+
+  int32_t found_memory = -1;
+  for (uint32_t bit=0; bit < memory_properties.memoryTypeCount; ++bit) {
+    if (memory_requirements.memoryTypeBits & (1 << bit) &&
+        (memory_properties.memoryTypes[bit].propertyFlags &
+            required_memory_properties) == required_memory_properties) {
+      found_memory = bit;
+    }
+  }
+  assert(found_memory != -1);
+
+  vkh::MemoryAllocateInfo F(allocate_info,
+      allocationSize = memory_requirements.size,
+      memoryTypeIndex = found_memory
+  );
+  assert(vkAllocateMemory(device, &allocate_info, nullptr, device_memory) == VK_SUCCESS);
+}
+
+DVST(BufferCreateInfo, BUFFER_CREATE_INFO) {};
+DC(Buffer);
+VkBuffer CreateBuffer(VkDeviceSize buffer_size, VkBufferUsageFlags buffer_usage, VkMemoryPropertyFlags memory_properties, VkDeviceMemory* buffer_memory) {
+  BufferCreateInfo F(buffer_info,
+      size = buffer_size,
+      usage = buffer_usage
+  );
+  auto buffer = CreateBuffer(device, buffer_info);
+
+  VkMemoryRequirements memory_requirements;
+  vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+  vkh::AllocateMemory(memory_properties, memory_requirements, buffer_memory);
+  vkBindBufferMemory(device, buffer, *buffer_memory, 0);
+  return buffer;
+}
+
+DVST(ImageCreateInfo, IMAGE_CREATE_INFO) {
+  ImageCreateInfo() {
+    imageType = VK_IMAGE_TYPE_2D;
+    extent = {0, 0, 1};
+    mipLevels = 1;
+    arrayLayers = 1;
+    initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    samples = VK_SAMPLE_COUNT_1_BIT;
+  }
+};
+DC(Image);
+VkImage CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties, VkDeviceMemory* image_memory) {
+  vkh::ImageCreateInfo F(image_info,
+      extent.width = width,
+      extent.height = height,
+      format = format,
+      tiling = tiling,
+      usage = usage
+  );
+  auto image = CreateImage(image_info);
+
+  VkMemoryRequirements memory_requirements;
+  vkGetImageMemoryRequirements(device, image, &memory_requirements);
+  vkh::AllocateMemory(memory_properties, memory_requirements, image_memory);
+  vkBindImageMemory(device, image, *image_memory, 0);
+  return image;
+}
 
 VkResult PresentQueue(VkQueue present_queue, VkSemaphore* wait_semaphore, VkSwapchainKHR* swapchain, uint32_t* image_index) {
   PresentInfoKHR present_info(wait_semaphore, swapchain, image_index);
