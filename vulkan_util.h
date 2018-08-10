@@ -45,8 +45,8 @@ std::vector<arg_value_type<function_t, 3>> GetProps(key1_t key1, key2_t key2, co
   return things;
 }
 
-#define GET_MACRO(var, _1, _2, _3, _4, _5, _6, _7, NAME, ...) NAME
-#define F(...) GET_MACRO(__VA_ARGS__, FILL7, FILL6, FILL5, FILL4, FILL3, FILL2, FILL1)(__VA_ARGS__)
+#define GET_MACRO(var, _1, _2, _3, _4, _5, _6, _7, _8, NAME, ...) NAME
+#define F(...) GET_MACRO(__VA_ARGS__, FILL8, FILL7, FILL6, FILL5, FILL4, FILL3, FILL2, FILL1)(__VA_ARGS__)
 
 #define FILL1(var, assign1) \
   var; \
@@ -76,6 +76,9 @@ std::vector<arg_value_type<function_t, 3>> GetProps(key1_t key1, key2_t key2, co
   FILL6(var, assign1, assign2, assign3, assign4, assign5, assign6); \
   var.assign7;
 
+#define FILL8(var, assign1, assign2, assign3, assign4, assign5, assign6, assign7, assign8) \
+  FILL7(var, assign1, assign2, assign3, assign4, assign5, assign6, assign7); \
+  var.assign8;
 
 
 #define DVST(name, caps_name) \
@@ -87,7 +90,7 @@ struct name : public Vk ## name { \
   } \
 }; \
 } /* namespace dv */ \
-struct name : Vk ## name
+struct name : public dv :: name
 
 
 #define DV(name) \
@@ -98,7 +101,7 @@ struct name : public Vk ## name { \
   } \
 }; \
 } /* namespace dv */ \
-struct name : Vk ## name
+struct name : public dv :: name
 
 
 // Generates a generic create helper function with the default behaviour of
@@ -116,11 +119,7 @@ struct name : Vk ## name
 
 namespace vkh {
 
-DVST(ApplicationInfo, APPLICATION_INFO) {
-  ApplicationInfo() {
-    pApplicationName = "";
-  }
-};
+DVST(ApplicationInfo, APPLICATION_INFO) {};
 
 DVST(InstanceCreateInfo, INSTANCE_CREATE_INFO) {};
 
@@ -140,7 +139,6 @@ DVST(SwapchainCreateInfoKHR, SWAPCHAIN_CREATE_INFO_KHR) {
     preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     clipped = VK_TRUE;
-    oldSwapchain = VK_NULL_HANDLE;
   }
 };
 
@@ -172,6 +170,10 @@ struct VertexInputState : public VkVertexInputState {
     sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     pNext = nullptr;
     flags = 0;
+    vertexBindingDescriptionCount = 0;
+    pVertexBindingDescriptions = nullptr;
+    vertexAttributeDescriptionCount = 0;
+    pVertexAttributeDescriptions = nullptr;
   }
 };
 
@@ -326,6 +328,7 @@ DV(SubpassDescription) {
 };
 
 DVST(RenderPassCreateInfo, RENDER_PASS_CREATE_INFO) {};
+DC(RenderPass);
 
 std::string kMain = "main";
 DVST(PipelineShaderStageCreateInfo, PIPELINE_SHADER_STAGE_CREATE_INFO) {
@@ -334,10 +337,83 @@ DVST(PipelineShaderStageCreateInfo, PIPELINE_SHADER_STAGE_CREATE_INFO) {
   }
 };
 
-DVST(FramebufferCreateInfo, FRAMEBUFFER_CREATE_INFO) {};
-
+DVST(FramebufferCreateInfo, FRAMEBUFFER_CREATE_INFO) {
+  FramebufferCreateInfo() {
+    layers = 1;
+  }
+};
 DC(Framebuffer);
-DC(RenderPass);
+
+DVST(CommandPoolCreateInfo, COMMAND_POOL_CREATE_INFO) {
+  CommandPoolCreateInfo(uint32_t queue_family_index) {
+    queueFamilyIndex = queue_family_index;
+  }
+};
+DC(CommandPool);
+
+DVST(CommandBufferAllocateInfo, COMMAND_BUFFER_ALLOCATE_INFO) {
+  CommandBufferAllocateInfo(VkCommandPool pool, uint32_t command_buffer_count) {
+    commandPool = pool;
+    commandBufferCount = command_buffer_count;
+  }
+};
+
+DVST(CommandBufferBeginInfo, COMMAND_BUFFER_BEGIN_INFO) {
+  CommandBufferBeginInfo() {
+    flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+  }
+};
+
+DVST(SemaphoreCreateInfo, SEMAPHORE_CREATE_INFO) {};
+DC(Semaphore);
+VkSemaphore CreateSemaphore(VkDevice device) {
+  return CreateSemaphore(device, SemaphoreCreateInfo());
+}
+
+DVST(FenceCreateInfo, FENCE_CREATE_INFO) {};
+DC(Fence);
+VkFence CreateFence(VkDevice device) {
+  FenceCreateInfo create_info;
+  create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+  return CreateFence(device, create_info);
+}
+
+DVST(SubmitInfo, SUBMIT_INFO) {};
+
+DV(SubpassDependency) {
+  SubpassDependency() {
+    dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+  }
+};
+
+DVST(PresentInfoKHR, PRESENT_INFO_KHR) {
+  PresentInfoKHR(VkSemaphore* wait_semaphore, VkSwapchainKHR* swapchain, uint32_t* image_index) {
+    waitSemaphoreCount = 1;
+    pWaitSemaphores = wait_semaphore;
+
+    swapchainCount = 1;
+    pSwapchains = swapchain;
+    pImageIndices = image_index;
+  }
+};
+
+VkResult PresentQueue(VkQueue present_queue, VkSemaphore* wait_semaphore, VkSwapchainKHR* swapchain, uint32_t* image_index) {
+  PresentInfoKHR present_info(wait_semaphore, swapchain, image_index);
+  return vkQueuePresentKHR(present_queue, &present_info);
+}
+
+
+const VkClearValue kClearColor = {0, 0, 0, 1};
+DVST(RenderPassBeginInfo, RENDER_PASS_BEGIN_INFO) {
+  RenderPassBeginInfo(VkRenderPass render_pass, VkFramebuffer framebuffer_in, VkExtent2D extent) {
+    renderPass = render_pass;
+    framebuffer = framebuffer_in;
+    renderArea.extent = extent;
+    clearValueCount = 1;
+    pClearValues = &kClearColor;
+  }
+};
+
 DC(PipelineLayout);
 DC(ImageView);
 DCE(Swapchain, KHR);
@@ -444,4 +520,12 @@ void DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT
     if (func != nullptr) {
         func(instance, callback, pAllocator);
     }
+}
+
+namespace h {
+VkShaderModule ShaderModule(VkDevice device, const std::string& filename) {
+  const auto source = ReadFile(filename);
+  const auto create_info = vkh::ShaderModuleCreateInfo(source);
+  return CreateShaderModule(device, create_info);
+}
 }
