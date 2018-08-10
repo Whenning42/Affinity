@@ -248,75 +248,86 @@ int main() {
   }
 
   // Graphics pipeline
-   auto vert_source = ReadFile("shaders/quad.vert.spv");
-   auto frag_source = ReadFile("shaders/quad.frag.spv");
+  auto vert_source = ReadFile("shaders/quad.vert.spv");
+  auto frag_source = ReadFile("shaders/quad.frag.spv");
 
-   VkShaderModule vertex_module = vkh::ShaderModule::Create(device, vert_source);
-   VkShaderModule fragment_module = vkh::ShaderModule::Create(device, frag_source);
+  VkShaderModule vertex_module = vkh::ShaderModule::Create(device, vert_source);
+  VkShaderModule fragment_module = vkh::ShaderModule::Create(device, frag_source);
 
-   vkh::PipelineShaderStageCreateInfo F(vertex_stage_info,
-      stage = VK_SHADER_STAGE_VERTEX_BIT,
-      module = vertex_module
-   );
-   vkh::PipelineShaderStageCreateInfo F(fragment_stage_info,
-      stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-      module = fragment_module
-   );
-   std::vector<VkPipelineShaderStageCreateInfo> pipeline_stages {vertex_stage_info, fragment_stage_info};
-   const VkVertexInputBindingDescription kVertexBindingDescription{0, sizeof(float)*3};
-   const VkVertexInputAttributeDescription kVertexAttributeDescription{0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0};
-   vkh::VertexInputState F(vertex_input_state,
-      vertexBindingDescriptionCount = 1,
-      pVertexBindingDescriptions = &kVertexBindingDescription,
-      vertexAttributeDescriptionCount = 1,
-      pVertexAttributeDescriptions = &kVertexAttributeDescription
-   );
+  vkh::PipelineShaderStageCreateInfo F(vertex_stage_info,
+     stage = VK_SHADER_STAGE_VERTEX_BIT,
+     module = vertex_module
+  );
+  vkh::PipelineShaderStageCreateInfo F(fragment_stage_info,
+     stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+     module = fragment_module
+  );
+  std::vector<VkPipelineShaderStageCreateInfo> pipeline_stages {vertex_stage_info, fragment_stage_info};
+  const VkVertexInputBindingDescription kVertexBindingDescription{0, sizeof(float)*3};
+  const VkVertexInputAttributeDescription kVertexAttributeDescription{0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0};
+  vkh::VertexInputState F(vertex_input_state,
+     vertexBindingDescriptionCount = 1,
+     pVertexBindingDescriptions = &kVertexBindingDescription,
+     vertexAttributeDescriptionCount = 1,
+     pVertexAttributeDescriptions = &kVertexAttributeDescription
+  );
 
-   vkh::InputAssemblyState input_assembly_state(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-   vkh::ViewportState viewport_state(extent);
+  vkh::InputAssemblyState input_assembly_state(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+  vkh::ViewportState viewport_state(extent);
 
-   // Will be updated for our bitmap uniform sampler
-   vkh::PipelineLayoutCreateInfo F(pipeline_layout_info,
-      setLayoutCount = 0,
-      pSetLayouts = nullptr
-   );
-   auto pipeline_layout = vkh::CreatePipelineLayout(device, pipeline_layout_info);
+  // Will be updated to add a descriptor for our bitmap uniform sampler
+  vkh::PipelineLayoutCreateInfo F(pipeline_layout_info,
+     setLayoutCount = 0,
+     pSetLayouts = nullptr
+  );
+  auto pipeline_layout = vkh::CreatePipelineLayout(device, pipeline_layout_info);
 
-   vkh::AttachmentDescription F(presentable_color_attachment,
-      format = surface_format.format,
-      finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-   );
+  vkh::AttachmentDescription F(presentable_color_attachment,
+     format = surface_format.format,
+     finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+  );
 
-   VkAttachmentReference color_reference{
-      /*attachment =*/ 0,
-      /*layout =*/ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-   };
+  VkAttachmentReference F(color_reference,
+     attachment = 0,
+     layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+  );
 
-   vkh::SubpassDescription F(subpass,
-      colorAttachmentCount = 1,
-      pColorAttachments = &color_reference
-   );
+  vkh::SubpassDescription F(subpass,
+     colorAttachmentCount = 1,
+     pColorAttachments = &color_reference
+  );
 
-   vkh::RenderPassCreateInfo F(render_pass_info,
-      attachmentCount = 1,
-      pAttachments = &presentable_color_attachment,
-      subpassCount = 1,
-      pSubpasses = &subpass
-   );
-   auto render_pass = vkh::CreateRenderPass(device, render_pass_info);
+  vkh::RenderPassCreateInfo F(render_pass_info,
+     attachmentCount = 1,
+     pAttachments = &presentable_color_attachment,
+     subpassCount = 1,
+     pSubpasses = &subpass
+  );
+  auto render_pass = vkh::CreateRenderPass(device, render_pass_info);
 
-   vkh::GraphicsPipelineCreateInfo F(pipeline_info,
-      pStages = pipeline_stages.data(),
-      pVertexInputState = &vertex_input_state,
-      pInputAssemblyState = &input_assembly_state,
-      pViewportState = &viewport_state,
-      layout = pipeline_layout,
-      renderPass = render_pass,
-      subpass = 0
-   );
-   VkPipeline graphics_pipeline;
-   assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphics_pipeline) == VK_SUCCESS);
+  vkh::GraphicsPipelineCreateInfo F(pipeline_info,
+     pStages = pipeline_stages.data(),
+     pVertexInputState = &vertex_input_state,
+     pInputAssemblyState = &input_assembly_state,
+     pViewportState = &viewport_state,
+     layout = pipeline_layout,
+     renderPass = render_pass,
+     subpass = 0
+  );
+  auto graphics_pipeline = vkh::CreateGraphicsPipeline(device, pipeline_info);
 
+  std::vector<VkFramebuffer> swapchain_framebuffers(swapchain_image_views.size());
+  for(auto& image_view : swapchain_image_views) {
+    VkImageView* pAttachment = &image_view;
+
+    vkh::FramebufferCreateInfo F(framebuffer_info,
+        renderPass = render_pass,
+        attachmentCount = 1,
+        pAttachments = pAttachment
+    );
+
+    swapchain_framebuffers.push_back(vkh::CreateFramebuffer(device, framebuffer_info));
+  };
 
   DestroyDebugReportCallbackEXT(instance, callback, nullptr);
   vkDestroyShaderModule(device, vertex_module, nullptr);

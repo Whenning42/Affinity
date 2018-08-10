@@ -339,6 +339,8 @@ struct AttachmentDescription : public VkAttachmentDescription {
   }
 };
 
+struct AttachmentReference : public VkAttachmentReference {};
+
 struct SubpassDescription : public VkSubpassDescription {
   SubpassDescription() {
     flags = 0;
@@ -380,23 +382,56 @@ struct PipelineShaderStageCreateInfo : public VkPipelineShaderStageCreateInfo {
   }
 };
 
+struct FramebufferCreateInfo : public VkFramebufferCreateInfo {
+  FramebufferCreateInfo() {
+    sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    pNext = 0;
+    flags = 0;
+  }
+};
+
+#define DC(type) Vk ## type Create ## type (VkDevice device, const Vk ## type ## CreateInfo& create_info) { \
+  Vk ## type type; \
+  assert(vkCreate ## type (device, &create_info, nullptr, &type) == VK_SUCCESS); \
+  return type; \
+}
+
+DC(Framebuffer);
+DC(RenderPass);
+DC(PipelineLayout);
+DC(ImageView);
+/*
+VkFramebuffer CreateFramebuffer(VkDevice device, const VkFramebufferCreateInfo& create_info) {
+  VkFramebuffer framebuffer;
+  assert(vkCreateFramebuffer(device, &create_info, nullptr, &framebuffer) == VK_SUCCESS);
+  return framebuffer;
+}*/
+
+VkPipeline CreateGraphicsPipeline(VkDevice device, const VkGraphicsPipelineCreateInfo& create_info) {
+  VkPipeline pipeline;
+  assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline) == VK_SUCCESS);
+  return pipeline;
+}
+/*
 VkRenderPass CreateRenderPass(VkDevice device, const VkRenderPassCreateInfo& create_info) {
   VkRenderPass render_pass;
   assert(vkCreateRenderPass(device, &create_info, nullptr, &render_pass) == VK_SUCCESS);
   return render_pass;
-}
+}*/
 
+/*
 VkPipelineLayout CreatePipelineLayout(VkDevice device, const VkPipelineLayoutCreateInfo& create_info) {
   VkPipelineLayout pipeline_layout;
   assert(vkCreatePipelineLayout(device, &create_info, nullptr, &pipeline_layout) == VK_SUCCESS);
   return pipeline_layout;
-}
+}*/
 
+/*
 VkImageView CreateImageView(VkDevice device, const VkImageViewCreateInfo& create_info) {
   VkImageView image_view;
   assert(vkCreateImageView(device, &create_info, nullptr, &image_view) == VK_SUCCESS);
   return image_view;
-}
+}*/
 
 VkImageView CreateImageView(VkDevice device, VkImage image, VkImageViewType view_type, VkFormat format, VkImageAspectFlags aspect_mask) {
 
