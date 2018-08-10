@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <set>
@@ -75,58 +76,67 @@ std::vector<arg_value_type<function_t, 3>> GetProps(key1_t key1, key2_t key2, co
   FILL6(var, assign1, assign2, assign3, assign4, assign5, assign6); \
   var.assign7;
 
+
+
+#define DVST(name, caps_name) \
+namespace dv { \
+struct name : public Vk ## name { \
+  name() { \
+    memset(this, 0, sizeof(Vk ## name)); \
+    sType = VK_STRUCTURE_TYPE_ ## caps_name ; \
+  } \
+}; \
+} /* namespace dv */ \
+struct name : Vk ## name
+
+
+#define DV(name) \
+namespace dv { \
+struct name : public Vk ## name { \
+  name() { \
+    memset(this, 0, sizeof(Vk ## name )); \
+  } \
+}; \
+} /* namespace dv */ \
+struct name : Vk ## name
+
+
+// Generates a generic create helper function with the default behaviour of
+// asserting success and returning the created object, while using no custom
+// memory allocator.
+#define DCE(type, extension) Vk ## type ## extension Create ## type ## extension (VkDevice device, const Vk ## type ## CreateInfo ## extension& create_info) { \
+  Vk ## type ## extension type; \
+  assert(vkCreate ## type ## extension(device, &create_info, nullptr, &type) == VK_SUCCESS); \
+  return type; \
+}
+
+
+// Generates a helper for a type that is core vulkan.
+#define DC(type) DCE(type, )
+
 namespace vkh {
-struct ApplicationInfo : public VkApplicationInfo {
+
+DVST(ApplicationInfo, APPLICATION_INFO) {
   ApplicationInfo() {
     pApplicationName = "";
-    sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    pNext = nullptr;
-  }
-};
-struct InstanceCreateInfo : public VkInstanceCreateInfo {
-  InstanceCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    pNext = nullptr;
-    flags = 0;
   }
 };
 
-float kQueuePriorities[] = {1};
-struct DeviceQueueCreateInfo : public VkDeviceQueueCreateInfo {
-  DeviceQueueCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    pNext = nullptr;
-    flags = 0;
-    pQueuePriorities = kQueuePriorities;
+DVST(InstanceCreateInfo, INSTANCE_CREATE_INFO) {};
+
+DVST(DeviceQueueCreateInfo, DEVICE_QUEUE_CREATE_INFO) {
+  const std::vector<float> queue_priorities;
+  DeviceQueueCreateInfo(uint32_t queue_count): queue_priorities(queue_count, 1.0) {
+    queueCount = queue_count;
+    pQueuePriorities = queue_priorities.data();
   }
 };
 
-struct DeviceCreateInfo : public VkDeviceCreateInfo {
-  DeviceCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    pNext = nullptr;
-    flags = 0;
-    enabledExtensionCount = 0;
-    ppEnabledExtensionNames = nullptr;
-    enabledLayerCount = 0;
-    ppEnabledLayerNames = nullptr;
-    pEnabledFeatures = nullptr;
-  }
-};
+DVST(DeviceCreateInfo, DEVICE_CREATE_INFO) {};
 
-struct SwapchainCreateInfoKHR : public VkSwapchainCreateInfoKHR {
+DVST(SwapchainCreateInfoKHR, SWAPCHAIN_CREATE_INFO_KHR) {
   SwapchainCreateInfoKHR() {
-    sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    pNext = nullptr;
-    flags = 0;
-
-    // Have to set surface through pQueueFamilyIndices
-    // with the exception of
     imageArrayLayers = 1;
-    // And have to set presentMode
-
-    queueFamilyIndexCount = 0;
-    pQueueFamilyIndices = nullptr;
     preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     clipped = VK_TRUE;
@@ -134,26 +144,18 @@ struct SwapchainCreateInfoKHR : public VkSwapchainCreateInfoKHR {
   }
 };
 
-struct ImageSubresourceRange : public VkImageSubresourceRange {
+DV(ImageSubresourceRange) {
   ImageSubresourceRange(VkImageAspectFlags aspect_mask) {
     aspectMask = aspect_mask;
-    baseMipLevel = 0;
     levelCount = VK_REMAINING_MIP_LEVELS;
-    baseArrayLayer = 0;
     layerCount = VK_REMAINING_ARRAY_LAYERS;
   }
 };
 
-struct ImageViewCreateInfo : public VkImageViewCreateInfo {
+DVST(ImageViewCreateInfo, IMAGE_VIEW_CREATE_INFO) {
   ImageViewCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    pNext = nullptr;
-    flags = 0;
     viewType = VK_IMAGE_VIEW_TYPE_2D;
-    components = {};
     subresourceRange = vkh::ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
-
-    // Need to set image and format
   }
 };
 
@@ -276,56 +278,32 @@ struct ColorBlendState : public VkColorBlendState {
   }
 };
 
-struct PipelineLayoutCreateInfo : public VkPipelineLayoutCreateInfo {
-  PipelineLayoutCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pNext = nullptr;
-    flags = 0;
-    pushConstantRangeCount = 0;
-    pPushConstantRanges = nullptr;
-  }
-};
+DVST(PipelineLayoutCreateInfo, PIPELINE_LAYOUT_CREATE_INFO) {};
 
 const vkh::RasterizationState kRasterization;
 const vkh::MultisampleState kNoMultisample;
 const vkh::DepthStencilState kNoDepthTest;
 const vkh::ColorBlendState kNoBlendingSingleAttachment;
-struct GraphicsPipelineCreateInfo : public VkGraphicsPipelineCreateInfo {
+
+DVST(GraphicsPipelineCreateInfo, GRAPHICS_PIPELINE_CREATE_INFO) {
   GraphicsPipelineCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pNext = nullptr;
-    flags = 0;
-    stageCount = 2;
-    //pStages
-    //pVertexInputState
-    //pVertexAsseblyState
-    pTessellationState = nullptr;
     pRasterizationState = &kRasterization;
     pMultisampleState = &kNoMultisample;
     pDepthStencilState = &kNoDepthTest;
     pColorBlendState = &kNoBlendingSingleAttachment;
-    pDynamicState = nullptr;
-    renderPass = nullptr;
-    basePipelineHandle = VK_NULL_HANDLE;
-    basePipelineIndex = -1;
   }
 };
 
-struct ShaderModule {
-  static VkShaderModule Create(VkDevice device, const std::vector<char>& source) {
-    VkShaderModuleCreateInfo F(create_info,
-      sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-      pNext = nullptr,
-      flags = 0,
-      codeSize = source.size(),
-      pCode = reinterpret_cast<const uint32_t*>(source.data())
-    );
-
-    VkShaderModule shader_module;
-    assert(vkCreateShaderModule(device, &create_info, nullptr, &shader_module) == VK_SUCCESS);
-    return shader_module;
+DVST(ShaderModuleCreateInfo, SHADER_MODULE_CREATE_INFO) {
+  // We don't know if we'll use this source right away.
+  const std::vector<char> source;
+  ShaderModuleCreateInfo(const std::vector<char>& source): source(source) {
+    codeSize = source.size();
+    pCode = reinterpret_cast<const uint32_t*>(source.data());
   }
 };
+
+DC(ShaderModule);
 
 struct AttachmentDescription : public VkAttachmentDescription {
   AttachmentDescription() {
@@ -341,108 +319,34 @@ struct AttachmentDescription : public VkAttachmentDescription {
 
 struct AttachmentReference : public VkAttachmentReference {};
 
-struct SubpassDescription : public VkSubpassDescription {
+DV(SubpassDescription) {
   SubpassDescription() {
-    flags = 0;
     pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    inputAttachmentCount = 0;
-    pInputAttachments = nullptr;
-    colorAttachmentCount = 0;
-    pColorAttachments = nullptr;
-    pResolveAttachments = nullptr;
-    pDepthStencilAttachment = nullptr;
-    preserveAttachmentCount = 0;
-    pPreserveAttachments = nullptr;
   }
 };
 
-struct RenderPassCreateInfo : public VkRenderPassCreateInfo {
-  RenderPassCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    pNext = nullptr;
-    flags = 0;
-    attachmentCount = 0;
-    pAttachments = nullptr;
-    subpassCount = 0;
-    pSubpasses = nullptr;
-    dependencyCount = 0;
-    pDependencies = nullptr;
-  }
-};
+DVST(RenderPassCreateInfo, RENDER_PASS_CREATE_INFO) {};
 
 std::string kMain = "main";
-struct PipelineShaderStageCreateInfo : public VkPipelineShaderStageCreateInfo {
+DVST(PipelineShaderStageCreateInfo, PIPELINE_SHADER_STAGE_CREATE_INFO) {
   PipelineShaderStageCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    pNext = 0;
-    flags = 0;
-    module = nullptr;
     pName = kMain.c_str();
-    pSpecializationInfo = nullptr;
   }
 };
 
-struct FramebufferCreateInfo : public VkFramebufferCreateInfo {
-  FramebufferCreateInfo() {
-    sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    pNext = 0;
-    flags = 0;
-  }
-};
-
-#define DC(type) Vk ## type Create ## type (VkDevice device, const Vk ## type ## CreateInfo& create_info) { \
-  Vk ## type type; \
-  assert(vkCreate ## type (device, &create_info, nullptr, &type) == VK_SUCCESS); \
-  return type; \
-}
+DVST(FramebufferCreateInfo, FRAMEBUFFER_CREATE_INFO) {};
 
 DC(Framebuffer);
 DC(RenderPass);
 DC(PipelineLayout);
 DC(ImageView);
-/*
-VkFramebuffer CreateFramebuffer(VkDevice device, const VkFramebufferCreateInfo& create_info) {
-  VkFramebuffer framebuffer;
-  assert(vkCreateFramebuffer(device, &create_info, nullptr, &framebuffer) == VK_SUCCESS);
-  return framebuffer;
-}*/
+DCE(Swapchain, KHR);
 
+// The following create functions don't follow the above patterns very well.
 VkPipeline CreateGraphicsPipeline(VkDevice device, const VkGraphicsPipelineCreateInfo& create_info) {
   VkPipeline pipeline;
   assert(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline) == VK_SUCCESS);
   return pipeline;
-}
-/*
-VkRenderPass CreateRenderPass(VkDevice device, const VkRenderPassCreateInfo& create_info) {
-  VkRenderPass render_pass;
-  assert(vkCreateRenderPass(device, &create_info, nullptr, &render_pass) == VK_SUCCESS);
-  return render_pass;
-}*/
-
-/*
-VkPipelineLayout CreatePipelineLayout(VkDevice device, const VkPipelineLayoutCreateInfo& create_info) {
-  VkPipelineLayout pipeline_layout;
-  assert(vkCreatePipelineLayout(device, &create_info, nullptr, &pipeline_layout) == VK_SUCCESS);
-  return pipeline_layout;
-}*/
-
-/*
-VkImageView CreateImageView(VkDevice device, const VkImageViewCreateInfo& create_info) {
-  VkImageView image_view;
-  assert(vkCreateImageView(device, &create_info, nullptr, &image_view) == VK_SUCCESS);
-  return image_view;
-}*/
-
-VkImageView CreateImageView(VkDevice device, VkImage image, VkImageViewType view_type, VkFormat format, VkImageAspectFlags aspect_mask) {
-
-  vkh::ImageViewCreateInfo F(create_info,
-      image = image,
-      viewType = view_type,
-      format = format,
-      subresourceRange.aspectMask = aspect_mask
-  );
-
-  return CreateImageView(device, create_info);
 }
 
 // I personally don't believe in allocators
@@ -480,12 +384,6 @@ VkSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevic
   VkSurfaceCapabilitiesKHR capabilities;
   assert(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities) == VK_SUCCESS);
   return capabilities;
-}
-
-VkSwapchainKHR CreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR& create_info) {
-  VkSwapchainKHR swapchain;
-  assert(vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain) == VK_SUCCESS);
-  return swapchain;
 }
 }
 

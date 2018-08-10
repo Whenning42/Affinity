@@ -185,10 +185,7 @@ int main() {
 
   std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
   for(int32_t queue_family : queue_families) {
-    vkh::DeviceQueueCreateInfo F(create_info,
-        queueFamilyIndex = queue_family,
-        queueCount = 1
-    );
+    vkh::DeviceQueueCreateInfo create_info(1);
     queue_create_infos.push_back(create_info);
   }
 
